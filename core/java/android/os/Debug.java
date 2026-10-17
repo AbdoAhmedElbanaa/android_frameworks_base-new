@@ -1123,13 +1123,26 @@ public final class Debug
      * to attach.
      */
     public static boolean waitingForDebugger() {
+        if (sHideDevConnected) {
+            return false;
+        }
         return mWaiting;
+    }
+
+    private static volatile boolean sHideDevConnected = false;
+
+    /** @hide */
+    public static void setHideDevConnected(boolean hide) {
+        sHideDevConnected = hide;
     }
 
     /**
      * Determine if a debugger is currently attached.
      */
     public static boolean isDebuggerConnected() {
+        if (sHideDevConnected) {
+            return false;
+        }
         return VMDebug.isDebuggerConnected();
     }
 

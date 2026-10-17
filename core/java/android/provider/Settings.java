@@ -110,6 +110,7 @@ import android.widget.Editor;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
+import com.android.internal.util.android.HideDevUtils;
 
 import java.io.IOException;
 import java.lang.annotation.ElementType;
@@ -3851,6 +3852,9 @@ public final class Settings {
         @UnsupportedAppUsage
         public String getStringForUser(ContentResolver cr, String name,
                 final @CanBeCURRENT @UserIdInt int userId) {
+            if (HideDevUtils.isHideDevMode() && HideDevUtils.isDevSettingKey(name)) {
+                return HideDevUtils.getSpoofedSetting(name);
+            }
             final boolean isSelf = (userId == UserHandle.myUserId());
             final AttributionSource attributionSource = cr.getAttributionSource();
             final int deviceId = android.permission.flags.Flags.deviceAwarePermissionApisEnabled()

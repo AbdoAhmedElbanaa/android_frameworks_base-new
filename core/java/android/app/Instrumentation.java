@@ -81,6 +81,7 @@ import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.concurrent.TimeoutException;
 
+import com.android.internal.util.android.HideDevUtils;
 import com.android.internal.util.android.PixelPropsUtils;
 
 /**
@@ -1361,11 +1362,12 @@ public class Instrumentation {
     public Application newApplication(ClassLoader cl, String className, Context context)
             throws InstantiationException, IllegalAccessException, 
             ClassNotFoundException {
+        HideDevUtils.apply(context);
+        PixelPropsUtils.setProps(context);
+        GamePropsSpoofService.getInstance().applyPerAppSpoofFromContext(context);
         Application app = getFactory(context.getPackageName())
                 .instantiateApplication(cl, className);
         app.attach(context);
-        PixelPropsUtils.setProps(context);
-        GamePropsSpoofService.getInstance().applyPerAppSpoofFromContext(context);
         return app;
     }
     
@@ -1382,10 +1384,11 @@ public class Instrumentation {
     static public Application newApplication(Class<?> clazz, Context context)
             throws InstantiationException, IllegalAccessException, 
             ClassNotFoundException {
-        Application app = (Application)clazz.newInstance();
-        app.attach(context);
+        HideDevUtils.apply(context);
         PixelPropsUtils.setProps(context);
         GamePropsSpoofService.getInstance().applyPerAppSpoofFromContext(context);
+        Application app = (Application)clazz.newInstance();
+        app.attach(context);
         return app;
     }
 

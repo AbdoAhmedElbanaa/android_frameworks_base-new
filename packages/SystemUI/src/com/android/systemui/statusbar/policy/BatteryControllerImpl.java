@@ -29,13 +29,18 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.ContentObserver;
 import android.hardware.usb.UsbManager;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.os.PowerSaveState;
+import android.os.SystemProperties;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.IndentingPrintWriter;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -98,6 +103,22 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
     private boolean mAodPowerSave;
     private boolean mWirelessCharging;
     private boolean mIsBatteryDefender = false;
+    private ContentObserver mBypassChargingObserver;
+
+    private void updateBypassDefenderState() {
+        boolean isBypass = Settings.System.getInt(mContext.getContentResolver(), "bypass_charging_active", 0) == 1
+                || SystemProperties.getBoolean("persist.sys.bypass_charging", false);
+        boolean defender = mPluggedIn && isBypass;
+        if (defender != mIsBatteryDefender) {
+            mIsBatteryDefender = defender;
+            if (defender) {
+                mCharging = true;
+            }
+            fireIsBatteryDefenderChanged();
+            fireBatteryLevelChanged();
+        }
+    }
+
     private boolean mIsIncompatibleCharging = false;
     private boolean mTestMode = false;
     @VisibleForTesting
@@ -162,6 +183,22 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
         }
         mDemoModeController.addCallback(this);
         mDumpManager.registerDumpable(TAG, this);
+        mBypassChargingObserver = new ContentObserver(mMainHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                updateBypassDefenderState();
+            }
+        };
+        try {
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor("bypass_charging_active"),
+                    false,
+                    mBypassChargingObserver,
+                    UserHandle.USER_ALL
+            );
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to register bypass charging observer", e);
+        }
         updatePowerSave();
         updateEstimateInBackground();
     }
@@ -279,6 +316,8 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
 
             int chargingStatus = intent.getIntExtra(EXTRA_CHARGING_STATUS, CHARGING_POLICY_DEFAULT);
             boolean isBatteryDefender = isBatteryDefenderMode(chargingStatus);
+            mCharging = mCharged || status == BatteryManager.BATTERY_STATUS_CHARGING
+                    || (mPluggedIn && isBatteryDefender);
             if (isBatteryDefender != mIsBatteryDefender) {
                 mIsBatteryDefender = isBatteryDefender;
                 fireIsBatteryDefenderChanged();
@@ -379,6 +418,10 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
      * status. This method can be overridden to have a different definition for its subclasses.
      */
     protected boolean isBatteryDefenderMode(int chargingStatus) {
+        if (mPluggedIn && (Settings.System.getInt(mContext.getContentResolver(), "bypass_charging_active", 0) == 1
+                || SystemProperties.getBoolean("persist.sys.bypass_charging", false))) {
+            return true;
+        }
         return chargingStatus == CHARGING_POLICY_ADAPTIVE_LONGLIFE;
     }
 

@@ -137,6 +137,49 @@ public class SystemProperties {
     private static native void native_add_change_callback();
     private static native void native_report_sysprop_change();
 
+    private static volatile boolean sHideDevProps = false;
+
+    /** @hide */
+    public static void setHideDevProps(boolean hide) {
+        sHideDevProps = hide;
+    }
+
+    /** @hide */
+    public static boolean isHideDevProps() {
+        return sHideDevProps;
+    }
+
+    private static String getHideDevProp(String key) {
+        if (key == null) return null;
+        switch (key) {
+            case "ro.debuggable":
+                return "0";
+            case "ro.build.type":
+                return "user";
+            case "ro.build.tags":
+                return "release-keys";
+            case "init.svc.adbd":
+                return "stopped";
+            case "service.adb.root":
+            case "persist.service.adb.enable":
+                return "0";
+            case "service.adb.tcp.port":
+                return "-1";
+            case "sys.usb.config":
+            case "sys.usb.state":
+            case "persist.sys.usb.config": {
+                String val = native_get(key);
+                if (val != null && val.contains("adb")) {
+                    val = val.replace(",adb", "").replace("adb,", "").replace("adb", "none");
+                    return val.isEmpty() ? "none" : val;
+                }
+                return val != null ? val : "none";
+            }
+            default:
+                return null;
+        }
+    }
+
     /**
      * Get the String value for the given {@code key}.
      *
@@ -148,6 +191,12 @@ public class SystemProperties {
     @SystemApi
     public static String get(@NonNull String key) {
         if (TRACK_KEY_ACCESS) onKeyAccess(key);
+        if (sHideDevProps) {
+            String spoofed = getHideDevProp(key);
+            if (spoofed != null) {
+                return spoofed;
+            }
+        }
         return native_get(key);
     }
 
@@ -164,6 +213,12 @@ public class SystemProperties {
     @SystemApi
     public static String get(@NonNull String key, @Nullable String def) {
         if (TRACK_KEY_ACCESS) onKeyAccess(key);
+        if (sHideDevProps) {
+            String spoofed = getHideDevProp(key);
+            if (spoofed != null) {
+                return spoofed;
+            }
+        }
         return native_get(key, def);
     }
 
@@ -179,6 +234,18 @@ public class SystemProperties {
     @SystemApi
     public static int getInt(@NonNull String key, int def) {
         if (TRACK_KEY_ACCESS) onKeyAccess(key);
+        if (sHideDevProps) {
+            if ("ro.debuggable".equals(key) || "service.adb.root".equals(key)
+                    || "persist.service.adb.enable".equals(key)) {
+                return 0;
+            }
+            if ("service.adb.tcp.port".equals(key)) {
+                return -1;
+            }
+            if ("init.svc.adbd".equals(key)) {
+                return def;
+            }
+        }
         return native_get_int(key, def);
     }
 
@@ -194,6 +261,15 @@ public class SystemProperties {
     @SystemApi
     public static long getLong(@NonNull String key, long def) {
         if (TRACK_KEY_ACCESS) onKeyAccess(key);
+        if (sHideDevProps) {
+            if ("ro.debuggable".equals(key) || "service.adb.root".equals(key)
+                    || "persist.service.adb.enable".equals(key)) {
+                return 0L;
+            }
+            if ("service.adb.tcp.port".equals(key)) {
+                return -1L;
+            }
+        }
         return native_get_long(key, def);
     }
 
@@ -214,6 +290,13 @@ public class SystemProperties {
     @SystemApi
     public static boolean getBoolean(@NonNull String key, boolean def) {
         if (TRACK_KEY_ACCESS) onKeyAccess(key);
+        if (sHideDevProps) {
+            if ("ro.debuggable".equals(key) || "init.svc.adbd".equals(key)
+                    || "service.adb.root".equals(key)
+                    || "persist.service.adb.enable".equals(key)) {
+                return false;
+            }
+        }
         return native_get_boolean(key, def);
     }
 

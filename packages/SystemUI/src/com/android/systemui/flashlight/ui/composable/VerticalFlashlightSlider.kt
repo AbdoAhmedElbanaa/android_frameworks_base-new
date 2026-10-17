@@ -19,9 +19,8 @@ package com.android.systemui.flashlight.ui.composable
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.graphics.res.animatedVectorResource
-import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
-import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.ui.platform.LocalContext
+import com.android.compose.ui.graphics.painter.rememberDrawablePainter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -332,10 +331,18 @@ private fun AnimatedVectorFlashlightDrawable(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    val image = AnimatedImageVector.animatedVectorResource(R.drawable.qs_flashlight_icon_on)
+    val context = LocalContext.current
+    val drawable = remember(atEnd, context) {
+        val resId = if (atEnd) R.drawable.qs_flashlight_icon_on else R.drawable.qs_flashlight_icon_off
+        try {
+            context.getDrawable(resId)
+        } catch (t: Throwable) {
+            context.getDrawable(if (atEnd) R.drawable.vd_flashlight_on else R.drawable.vd_flashlight_off)
+        }
+    }
     Icon(
         modifier = modifier.semantics { hideFromAccessibility() },
-        painter = rememberAnimatedVectorPainter(image, atEnd),
+        painter = rememberDrawablePainter(drawable),
         contentDescription = null,
         tint = color,
     )

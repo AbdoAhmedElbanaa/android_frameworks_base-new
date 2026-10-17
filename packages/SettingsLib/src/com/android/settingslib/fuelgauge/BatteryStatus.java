@@ -169,6 +169,9 @@ public class BatteryStatus {
 
     /** Whether battery defender is enabled. */
     public boolean isBatteryDefender() {
+        if (isPluggedIn() && android.os.SystemProperties.getBoolean("persist.sys.bypass_charging", false)) {
+            return true;
+        }
         return isBatteryDefender(chargingStatus);
     }
 
@@ -369,6 +372,12 @@ public class BatteryStatus {
      * defend, or temp defend
      */
     public static boolean isBatteryDefender(Intent batteryChangedIntent) {
+        if (batteryChangedIntent != null) {
+            int plugged = batteryChangedIntent.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0);
+            if (plugged != 0 && android.os.SystemProperties.getBoolean("persist.sys.bypass_charging", false)) {
+                return true;
+            }
+        }
         int chargingStatus =
                 batteryChangedIntent.getIntExtra(EXTRA_CHARGING_STATUS, CHARGING_POLICY_DEFAULT);
         return isBatteryDefender(chargingStatus);

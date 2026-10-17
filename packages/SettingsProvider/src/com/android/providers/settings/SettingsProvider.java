@@ -643,12 +643,108 @@ public class SettingsProvider extends ContentProvider {
         return null;
     }
 
+    private final Set<String> mHideDevApps = new java.util.concurrent.CopyOnWriteArraySet<>();
+    private volatile boolean mHideDevEnabled = false;
+    private volatile boolean mHideDevObserverRegistered = false;
+
+    private boolean isHideDevApp(String callingPackage) {
+        ensureHideDevObserver();
+        if (!mHideDevEnabled) return false;
+        if (callingPackage != null && mHideDevApps.contains(callingPackage)) {
+            return true;
+        }
+        try {
+            int uid = Binder.getCallingUid();
+            if (uid >= Process.FIRST_APPLICATION_UID) {
+                Context ctx = getContext();
+                if (ctx != null) {
+                    String[] packages = ctx.getPackageManager().getPackagesForUid(uid);
+                    if (packages != null) {
+                        for (String p : packages) {
+                            if (mHideDevApps.contains(p)) return true;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private void ensureHideDevObserver() {
+        if (mHideDevObserverRegistered) return;
+        Context context = getContext();
+        if (context == null) return;
+        mHideDevObserverRegistered = true;
+        updateHideDevConfig();
+        try {
+            android.database.ContentObserver observer = new android.database.ContentObserver(
+                    new Handler(Looper.getMainLooper())) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    updateHideDevConfig();
+                }
+            };
+            context.getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor("hide_developer_status_enabled"),
+                    false, observer, UserHandle.USER_ALL);
+            context.getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor("hide_developer_status_apps"),
+                    false, observer, UserHandle.USER_ALL);
+        } catch (Exception ignored) {}
+    }
+
+    private void updateHideDevConfig() {
+        Context context = getContext();
+        if (context == null) return;
+        final long token = Binder.clearCallingIdentity();
+        try {
+            mHideDevEnabled = Settings.Secure.getInt(
+                    context.getContentResolver(), "hide_developer_status_enabled", 0) == 1;
+            String apps = Settings.Secure.getString(
+                    context.getContentResolver(), "hide_developer_status_apps");
+            mHideDevApps.clear();
+            if (apps != null && !apps.isEmpty()) {
+                for (String pkg : apps.split(",")) {
+                    String trimmed = pkg.trim();
+                    if (!trimmed.isEmpty()) {
+                        mHideDevApps.add(trimmed);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+    }
+
+    private static boolean isDevSettingKey(String name) {
+        if (name == null) return false;
+        return name.equals("development_settings_enabled")
+                || name.equals("adb_enabled")
+                || name.equals("adb_wifi_enabled")
+                || name.equals("adb_port")
+                || name.equals("package_verifier_user_consent")
+                || name.equals("verify_apps_over_usb")
+                || name.equals("wait_for_debugger")
+                || name.equals("mock_location")
+                || name.equals("allow_mock_location")
+                || name.equals("art_verifier_verify_debug_only")
+                || name.equals("show_touches")
+                || name.equals("pointer_location")
+                || name.equals("debug_app")
+                || name.equals("device_provisioned");
+    }
+
     private String getSpoofedValue(String name) {
         String callingPackage = getCallingPackage();
-        if (callingPackage == null) return null;
+        if (isHideDevApp(callingPackage) && isDevSettingKey(name)) {
+            if ("device_provisioned".equals(name)) return "1";
+            if ("debug_app".equals(name)) return "";
+            return "0";
+        }
 
-        if (callingPackage.startsWith("com.android.")
-                || callingPackage.startsWith("com.google.android.")) {
+        if (callingPackage != null && (callingPackage.startsWith("com.android.")
+                || callingPackage.startsWith("com.google.android."))) {
             return null;
         }
 
@@ -656,7 +752,7 @@ public class SettingsProvider extends ContentProvider {
         try {
             AxSandboxManager sandboxManager =
                     getContext().getSystemService(AxSandboxManager.class);
-            if (sandboxManager != null) {
+            if (sandboxManager != null && callingPackage != null) {
                 settings = sandboxManager.getSpoofedSetting(callingPackage, name, UserHandle.getCallingUserId());
             }
         } catch (Exception e) {}
