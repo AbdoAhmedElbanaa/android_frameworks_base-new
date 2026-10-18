@@ -6880,6 +6880,41 @@ public final class Settings {
         public static final String CAMERA_FLASH_NOTIFICATION = "camera_flash_notification";
 
         /**
+         * Setting to set camera flash notification repeat / blink count.
+         * Default is 2.
+         * @hide
+         */
+        public static final String CAMERA_FLASH_NOTIFICATION_REPEAT = "camera_flash_notification_repeat";
+
+        /**
+         * Setting to set camera flash notification pulse rate in Hz (blinks per second).
+         * Default is 2.
+         * @hide
+         */
+        public static final String CAMERA_FLASH_NOTIFICATION_RATE = "camera_flash_notification_rate";
+
+        /**
+         * Setting to set custom camera flash notification ON duration in milliseconds.
+         * 0 = use rate.
+         * @hide
+         */
+        public static final String CAMERA_FLASH_NOTIFICATION_ON_DURATION = "camera_flash_notification_on_duration";
+
+        /**
+         * Setting to set custom camera flash notification OFF duration in milliseconds.
+         * 0 = use rate.
+         * @hide
+         */
+        public static final String CAMERA_FLASH_NOTIFICATION_OFF_DURATION = "camera_flash_notification_off_duration";
+
+        /**
+         * Setting to set camera flash notification brightness level / torch strength.
+         * 0 = default HAL level.
+         * @hide
+         */
+        public static final String CAMERA_FLASH_NOTIFICATION_STRENGTH = "camera_flash_notification_strength";
+
+        /**
          * Setting to enable screen flash notification feature.
          * <ul>
          *     <li> 0 = Off
@@ -8036,6 +8071,11 @@ public final class Settings {
             PRIVATE_SETTINGS.add(TOUCHPAD_ACCELERATION_ENABLED);
             PRIVATE_SETTINGS.add(TOUCHPAD_ENABLED);
             PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION);
+            PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION_REPEAT);
+            PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION_RATE);
+            PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION_ON_DURATION);
+            PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION_OFF_DURATION);
+            PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION_STRENGTH);
             PRIVATE_SETTINGS.add(SCREEN_FLASH_NOTIFICATION);
             PRIVATE_SETTINGS.add(SCREEN_FLASH_NOTIFICATION_COLOR);
             PRIVATE_SETTINGS.add(DEFAULT_DEVICE_FONT_SCALE);
