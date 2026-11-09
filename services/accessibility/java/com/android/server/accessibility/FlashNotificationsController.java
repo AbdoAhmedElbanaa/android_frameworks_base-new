@@ -148,6 +148,18 @@ class FlashNotificationsController {
     @VisibleForTesting
     static final String SETTING_KEY_SCREEN_FLASH_NOTIFICATION_COLOR =
             "screen_flash_notification_color_global";
+    @VisibleForTesting
+    static final String SETTING_KEY_FLASH_NOTIFICATION_PULSE_COUNT = "flash_notification_pulse_count";
+    @VisibleForTesting
+    static final String SETTING_KEY_FLASH_NOTIFICATION_ON_MS = "flash_notification_on_ms";
+    @VisibleForTesting
+    static final String SETTING_KEY_FLASH_NOTIFICATION_OFF_MS = "flash_notification_off_ms";
+    @VisibleForTesting
+    static final String SETTING_KEY_FLASH_NOTIFICATION_STRENGTH = "flash_notification_strength";
+    @VisibleForTesting
+    static final String SETTING_KEY_FLASH_NOTIFICATION_CALL_ON_MS = "flash_notification_call_on_ms";
+    @VisibleForTesting
+    static final String SETTING_KEY_FLASH_NOTIFICATION_CALL_OFF_MS = "flash_notification_call_off_ms";
 
     /**
      * Timeout of the wake lock (5 minutes). It should normally never triggered, the wakelock
@@ -171,6 +183,13 @@ class FlashNotificationsController {
     private boolean mIsCameraOpened = false;
     private CameraManager mCameraManager;
     private String mCameraId = null;
+    private int mPulseCount = 2;
+    private int mOnDurationMs = TYPE_DEFAULT_ON_MS;
+    private int mOffDurationMs = TYPE_DEFAULT_OFF_MS;
+    private int mStrengthPercent = 100;
+    private int mCallOnDurationMs = TYPE_SEQUENCE_ON_MS;
+    private int mCallOffDurationMs = TYPE_SEQUENCE_OFF_MS;
+    private int mMaxStrengthLevel = 1;
 
     private final CameraManager.TorchCallback mTorchCallback = new CameraManager.TorchCallback() {
         @Override
@@ -280,6 +299,29 @@ class FlashNotificationsController {
         if (mDisplayManager != null) {
             mDisplayManager.registerDisplayListener(displayListener, null);
         }
+
+        loadCustomSettings();
+    }
+
+    private void loadCustomSettings() {
+        final ContentResolver cr = mContext.getContentResolver();
+        mPulseCount = Settings.System.getIntForUser(cr,
+                SETTING_KEY_FLASH_NOTIFICATION_PULSE_COUNT, 2, UserHandle.USER_CURRENT);
+        mOnDurationMs = Settings.System.getIntForUser(cr,
+                SETTING_KEY_FLASH_NOTIFICATION_ON_MS, TYPE_DEFAULT_ON_MS, UserHandle.USER_CURRENT);
+        mOffDurationMs = Settings.System.getIntForUser(cr,
+                SETTING_KEY_FLASH_NOTIFICATION_OFF_MS, TYPE_DEFAULT_OFF_MS, UserHandle.USER_CURRENT);
+        mStrengthPercent = Settings.System.getIntForUser(cr,
+                SETTING_KEY_FLASH_NOTIFICATION_STRENGTH, 100, UserHandle.USER_CURRENT);
+        mCallOnDurationMs = Settings.System.getIntForUser(cr,
+                SETTING_KEY_FLASH_NOTIFICATION_CALL_ON_MS, TYPE_SEQUENCE_ON_MS, UserHandle.USER_CURRENT);
+        mCallOffDurationMs = Settings.System.getIntForUser(cr,
+                SETTING_KEY_FLASH_NOTIFICATION_CALL_OFF_MS, TYPE_SEQUENCE_OFF_MS, UserHandle.USER_CURRENT);
+        if (DEBUG) {
+            Log.d(LOG_TAG, "loadCustomSettings: pulses=" + mPulseCount + ", on=" + mOnDurationMs
+                    + "ms, off=" + mOffDurationMs + "ms, strength=" + mStrengthPercent
+                    + "%, callOn=" + mCallOnDurationMs + "ms, callOff=" + mCallOffDurationMs + "ms");
+        }
     }
 
     private static Handler getStartedHandler(String tag) {
@@ -293,7 +335,8 @@ class FlashNotificationsController {
             @FlashNotificationReason int reason, IBinder token) {
         final FlashNotification flashNotification = new FlashNotification(opPkg, TYPE_SEQUENCE,
                 getScreenFlashColorPreference(reason),
-                token, () -> stopFlashNotification(opPkg));
+                token, () -> stopFlashNotification(opPkg),
+                mCallOnDurationMs, mCallOffDurationMs, 0);
 
         if (!flashNotification.tryLinkToDeath()) return false;
 
@@ -308,13 +351,15 @@ class FlashNotificationsController {
 
     boolean startFlashNotificationEvent(String opPkg, int reason, String reasonPkg) {
         requestStartFlashNotification(new FlashNotification(opPkg, TYPE_DEFAULT,
-                getScreenFlashColorPreference(reason, reasonPkg)));
+                getScreenFlashColorPreference(reason, reasonPkg), null, null,
+                mOnDurationMs, mOffDurationMs, mPulseCount));
         return true;
     }
 
     private void startFlashNotificationShortPreview() {
         requestStartFlashNotification(new FlashNotification(TAG_PREVIEW, TYPE_DEFAULT,
-                getScreenFlashColorPreference(FLASH_REASON_PREVIEW)));
+                getScreenFlashColorPreference(FLASH_REASON_PREVIEW), null, null,
+                mOnDurationMs, mOffDurationMs, mPulseCount));
     }
 
     private void startFlashNotificationLongPreview(@ColorInt int color) {
@@ -328,7 +373,8 @@ class FlashNotificationsController {
 
     private void startFlashNotificationSequenceForAlarm() {
         requestStartFlashNotification(new FlashNotification(TAG_ALARM, TYPE_SEQUENCE,
-                getScreenFlashColorPreference(FLASH_REASON_ALARM)));
+                getScreenFlashColorPreference(FLASH_REASON_ALARM), null, null,
+                mCallOnDurationMs, mCallOffDurationMs, 0));
     }
 
     private void stopFlashNotificationSequenceForAlarm() {
@@ -379,6 +425,11 @@ class FlashNotificationsController {
         if (mCameraManager != null) {
             try {
                 mCameraId = getCameraId();
+                if (mCameraId != null) {
+                    CameraCharacteristics c = mCameraManager.getCameraCharacteristics(mCameraId);
+                    Integer maxStrength = c.get(CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL);
+                    mMaxStrengthLevel = (maxStrength != null && maxStrength > 1) ? maxStrength : 1;
+                }
             } catch (CameraAccessException e) {
                 Log.e(LOG_TAG, "CameraAccessException", e);
             }
@@ -389,18 +440,34 @@ class FlashNotificationsController {
 
     private String getCameraId() throws CameraAccessException {
         String[] ids = mCameraManager.getCameraIdList();
+        if (ids == null || ids.length == 0) {
+            return null;
+        }
 
+        // 1. Prefer back-facing camera with flash
         for (String id : ids) {
             CameraCharacteristics c = mCameraManager.getCameraCharacteristics(id);
             Boolean flashAvailable = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
             Integer lensFacing = c.get(CameraCharacteristics.LENS_FACING);
             if (flashAvailable != null && lensFacing != null
                     && flashAvailable && lensFacing == CameraCharacteristics.LENS_FACING_BACK) {
-                if (DEBUG) Log.d(LOG_TAG, "Found valid camera, cameraId=" + id);
+                if (DEBUG) Log.d(LOG_TAG, "Found valid back camera, cameraId=" + id);
                 return id;
             }
         }
-        return null;
+
+        // 2. Fallback: Any camera that has flash available
+        for (String id : ids) {
+            CameraCharacteristics c = mCameraManager.getCameraCharacteristics(id);
+            Boolean flashAvailable = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+            if (flashAvailable != null && flashAvailable) {
+                if (DEBUG) Log.d(LOG_TAG, "Found fallback camera with flash, cameraId=" + id);
+                return id;
+            }
+        }
+
+        // 3. Fallback: First camera
+        return ids[0];
     }
 
     private void showScreenNotificationOverlayView(@ColorInt int color) {
@@ -656,12 +723,22 @@ class FlashNotificationsController {
         if (DEBUG) Log.d(LOG_TAG, "doCameraFlashNotification: " + on + " mCameraId : " + mCameraId);
         if (mCameraManager != null && mCameraId != null) {
             try {
-                mCameraManager.setTorchMode(mCameraId, on);
+                if (on && mMaxStrengthLevel > 1) {
+                    int level = Math.max(1, Math.min(mMaxStrengthLevel,
+                            (int) Math.round((mStrengthPercent / 100.0) * mMaxStrengthLevel)));
+                    mCameraManager.turnOnTorchWithStrengthLevel(mCameraId, level);
+                } else {
+                    mCameraManager.setTorchMode(mCameraId, on);
+                }
                 mIsTorchTouched = on;
-            } catch (CameraAccessException e) {
-                Log.e(LOG_TAG, "Failed to setTorchMode: " + e);
-            } catch (IllegalArgumentException  e) {
-                Log.e(LOG_TAG, "Failed to setTorchMode: " + e);
+            } catch (CameraAccessException | IllegalArgumentException | UnsupportedOperationException e) {
+                Log.e(LOG_TAG, "Failed to setTorchMode/turnOnTorchWithStrengthLevel: " + e);
+                try {
+                    mCameraManager.setTorchMode(mCameraId, on);
+                    mIsTorchTouched = on;
+                } catch (Exception ex) {
+                    Log.e(LOG_TAG, "Fallback setTorchMode also failed: " + ex);
+                }
             }
         } else {
             Log.e(LOG_TAG, "Can not use camera flash notification, please check CameraManager!");
@@ -690,34 +767,27 @@ class FlashNotificationsController {
         }
 
         private FlashNotification(String tag, @FlashNotificationType int type, @ColorInt int color,
-                IBinder token, IBinder.DeathRecipient deathRecipient) {
+                IBinder token, IBinder.DeathRecipient deathRecipient,
+                int onDuration, int offDuration, int repeat) {
             mType = type;
             mTag = tag;
             mColor = color;
             mToken = token;
             mDeathRecipient = deathRecipient;
+            mOnDuration = onDuration;
+            mOffDuration = offDuration;
+            mRepeat = repeat;
+            mForceStartScreenFlash = (type == TYPE_LONG_PREVIEW);
+        }
 
-            switch (type) {
-                case TYPE_SEQUENCE:
-                    mOnDuration = TYPE_SEQUENCE_ON_MS;
-                    mOffDuration = TYPE_SEQUENCE_OFF_MS;
-                    mRepeat = 0; // indefinite
-                    mForceStartScreenFlash = false;
-                    break;
-                case TYPE_LONG_PREVIEW:
-                    mOnDuration = TYPE_LONG_PREVIEW_ON_MS;
-                    mOffDuration = TYPE_LONG_PREVIEW_OFF_MS;
-                    mRepeat = 1;
-                    mForceStartScreenFlash = true;
-                    break;
-                case TYPE_DEFAULT:
-                default:
-                    mOnDuration = TYPE_DEFAULT_ON_MS;
-                    mOffDuration = TYPE_DEFAULT_OFF_MS;
-                    mRepeat = 2;
-                    mForceStartScreenFlash = false;
-                    break;
-            }
+        private FlashNotification(String tag, @FlashNotificationType int type, @ColorInt int color,
+                IBinder token, IBinder.DeathRecipient deathRecipient) {
+            this(tag, type, color, token, deathRecipient,
+                    (type == TYPE_SEQUENCE) ? TYPE_SEQUENCE_ON_MS
+                            : (type == TYPE_LONG_PREVIEW ? TYPE_LONG_PREVIEW_ON_MS : TYPE_DEFAULT_ON_MS),
+                    (type == TYPE_SEQUENCE) ? TYPE_SEQUENCE_OFF_MS
+                            : (type == TYPE_LONG_PREVIEW ? TYPE_LONG_PREVIEW_OFF_MS : TYPE_DEFAULT_OFF_MS),
+                    (type == TYPE_SEQUENCE) ? 0 : (type == TYPE_LONG_PREVIEW ? 1 : 2));
         }
 
         boolean tryLinkToDeath() {
@@ -878,6 +948,7 @@ class FlashNotificationsController {
                 mCameraManager = mContext.getSystemService(CameraManager.class);
                 mCameraManager.registerAvailabilityCallback(mTorchAvailabilityCallback,
                         mCallbackHandler);
+                loadCustomSettings();
 
             } else if (ACTION_FLASH_NOTIFICATION_START_PREVIEW.equals(intent.getAction())) {
                 if (DEBUG) Log.i(LOG_TAG, "ACTION_FLASH_NOTIFICATION_START_PREVIEW");
@@ -902,6 +973,18 @@ class FlashNotificationsController {
                 SETTING_KEY_CAMERA_FLASH_NOTIFICATION);
         private final Uri mScreenFlashNotificationUri = Settings.System.getUriFor(
                 SETTING_KEY_SCREEN_FLASH_NOTIFICATION);
+        private final Uri mPulseCountUri = Settings.System.getUriFor(
+                SETTING_KEY_FLASH_NOTIFICATION_PULSE_COUNT);
+        private final Uri mOnMsUri = Settings.System.getUriFor(
+                SETTING_KEY_FLASH_NOTIFICATION_ON_MS);
+        private final Uri mOffMsUri = Settings.System.getUriFor(
+                SETTING_KEY_FLASH_NOTIFICATION_OFF_MS);
+        private final Uri mStrengthUri = Settings.System.getUriFor(
+                SETTING_KEY_FLASH_NOTIFICATION_STRENGTH);
+        private final Uri mCallOnMsUri = Settings.System.getUriFor(
+                SETTING_KEY_FLASH_NOTIFICATION_CALL_ON_MS);
+        private final Uri mCallOffMsUri = Settings.System.getUriFor(
+                SETTING_KEY_FLASH_NOTIFICATION_CALL_OFF_MS);
 
         FlashContentObserver(Handler handler) {
             super(handler);
@@ -911,6 +994,18 @@ class FlashNotificationsController {
             contentResolver.registerContentObserver(mCameraFlashNotificationUri, false, this,
                     UserHandle.USER_ALL);
             contentResolver.registerContentObserver(mScreenFlashNotificationUri, false, this,
+                    UserHandle.USER_ALL);
+            contentResolver.registerContentObserver(mPulseCountUri, false, this,
+                    UserHandle.USER_ALL);
+            contentResolver.registerContentObserver(mOnMsUri, false, this,
+                    UserHandle.USER_ALL);
+            contentResolver.registerContentObserver(mOffMsUri, false, this,
+                    UserHandle.USER_ALL);
+            contentResolver.registerContentObserver(mStrengthUri, false, this,
+                    UserHandle.USER_ALL);
+            contentResolver.registerContentObserver(mCallOnMsUri, false, this,
+                    UserHandle.USER_ALL);
+            contentResolver.registerContentObserver(mCallOffMsUri, false, this,
                     UserHandle.USER_ALL);
         }
 
@@ -922,6 +1017,7 @@ class FlashNotificationsController {
                         UserHandle.USER_CURRENT) != 0;
                 if (mIsCameraFlashNotificationEnabled) {
                     prepareForCameraFlashNotification();
+                    loadCustomSettings();
                 } else {
                     mIsTorchOn = false;
                     if (mCameraManager != null) {
@@ -932,6 +1028,9 @@ class FlashNotificationsController {
                 mIsScreenFlashNotificationEnabled = Settings.System.getIntForUser(
                         mContext.getContentResolver(), SETTING_KEY_SCREEN_FLASH_NOTIFICATION, 0,
                         UserHandle.USER_CURRENT) != 0;
+            } else if (mPulseCountUri.equals(uri) || mOnMsUri.equals(uri) || mOffMsUri.equals(uri)
+                    || mStrengthUri.equals(uri) || mCallOnMsUri.equals(uri) || mCallOffMsUri.equals(uri)) {
+                loadCustomSettings();
             }
         }
     }

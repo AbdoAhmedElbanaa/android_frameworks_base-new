@@ -3860,6 +3860,11 @@ public final class Settings {
             final boolean useCache = isSelf && !isInSystemServer();
             boolean needsGenerationTracker = false;
 
+            if (com.android.internal.util.android.HideDeveloperStatusUtils.shouldHideDevStatus(
+                    cr, cr.getPackageName(), name, userId)) {
+                return "0";
+            }
+
             // Check if there is a redacted value for this setting
             if (!mReadableFieldsWithRedactedValue.isEmpty()) {
                 boolean isSystemCaller =
@@ -6876,6 +6881,42 @@ public final class Settings {
         public static final String CAMERA_FLASH_NOTIFICATION = "camera_flash_notification";
 
         /**
+         * Pulse count for flash notifications.
+         * @hide
+         */
+        public static final String FLASH_NOTIFICATION_PULSE_COUNT = "flash_notification_pulse_count";
+
+        /**
+         * Flash on duration in milliseconds for notifications.
+         * @hide
+         */
+        public static final String FLASH_NOTIFICATION_ON_MS = "flash_notification_on_ms";
+
+        /**
+         * Flash off duration in milliseconds for notifications.
+         * @hide
+         */
+        public static final String FLASH_NOTIFICATION_OFF_MS = "flash_notification_off_ms";
+
+        /**
+         * Flashlight strength percentage (1 - 100) for flash notifications.
+         * @hide
+         */
+        public static final String FLASH_NOTIFICATION_STRENGTH = "flash_notification_strength";
+
+        /**
+         * Flash on duration in milliseconds for incoming calls and alarms.
+         * @hide
+         */
+        public static final String FLASH_NOTIFICATION_CALL_ON_MS = "flash_notification_call_on_ms";
+
+        /**
+         * Flash off duration in milliseconds for incoming calls and alarms.
+         * @hide
+         */
+        public static final String FLASH_NOTIFICATION_CALL_OFF_MS = "flash_notification_call_off_ms";
+
+        /**
          * Setting to enable screen flash notification feature.
          * <ul>
          *     <li> 0 = Off
@@ -8116,6 +8157,12 @@ public final class Settings {
             PRIVATE_SETTINGS.add(CAMERA_FLASH_NOTIFICATION);
             PRIVATE_SETTINGS.add(SCREEN_FLASH_NOTIFICATION);
             PRIVATE_SETTINGS.add(SCREEN_FLASH_NOTIFICATION_COLOR);
+            PRIVATE_SETTINGS.add(FLASH_NOTIFICATION_PULSE_COUNT);
+            PRIVATE_SETTINGS.add(FLASH_NOTIFICATION_ON_MS);
+            PRIVATE_SETTINGS.add(FLASH_NOTIFICATION_OFF_MS);
+            PRIVATE_SETTINGS.add(FLASH_NOTIFICATION_STRENGTH);
+            PRIVATE_SETTINGS.add(FLASH_NOTIFICATION_CALL_ON_MS);
+            PRIVATE_SETTINGS.add(FLASH_NOTIFICATION_CALL_OFF_MS);
             PRIVATE_SETTINGS.add(DEFAULT_DEVICE_FONT_SCALE);
             PRIVATE_SETTINGS.add(MOUSE_REVERSE_VERTICAL_SCROLLING);
             PRIVATE_SETTINGS.add(MOUSE_SWAP_PRIMARY_BUTTON);
@@ -14873,6 +14920,20 @@ public final class Settings {
          */
         @Readable
         public static final String PI_SNAPCHAT_SPOOF = "pi_snapchat_spoof";
+
+        /**
+         * Comma-separated list of package names for which developer status is hidden.
+         * @hide
+         */
+        @Readable
+        public static final String HIDE_DEVELOPER_STATUS = "hide_developer_status";
+
+        /**
+         * Whether hiding developer status for selected apps is enabled.
+         * @hide
+         */
+        @Readable
+        public static final String HIDE_DEVELOPER_STATUS_ENABLED = "hide_developer_status_enabled";
 
         /**
          * Whether to show privacy indicator for location

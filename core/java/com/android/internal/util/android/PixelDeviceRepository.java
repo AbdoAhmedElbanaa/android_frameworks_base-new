@@ -346,7 +346,11 @@ public final class PixelDeviceRepository {
                     "com.nothing.smartcenter",
                     "com.realme.link",
                     "in.startv.hotstar",
-                    "jp.id_credit_sp2.android"
+                    "jp.id_credit_sp2.android",
+                    // AI Services — required for Live Translate model downloads and
+                    // Pixel-exclusive Tensor feature flags (Phenotype / Phenotype gates)
+                    "com.google.android.as",
+                    "com.google.android.as.oss"
             )));
 
     /**

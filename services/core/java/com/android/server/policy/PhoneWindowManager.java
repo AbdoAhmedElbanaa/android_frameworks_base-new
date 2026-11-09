@@ -3905,6 +3905,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             return ADD_OKAY;
         }
 
+        // Always allow core system intelligence service (AiAi) to display floating translation
+        // and contextual action overlays (Live Translate / Blue Chip UI)
+        if (appInfo != null && appInfo.isPrivilegedApp() && "com.google.android.as".equals(packageName)) {
+            return ADD_OKAY;
+        }
+
         // Allow virtual device owners to add overlays on the trusted displays they own.
         if (mWindowManagerFuncs.isCallerVirtualDeviceOwner(displayId, callingUid)
                 && mWindowManagerFuncs.isDisplayTrusted(displayId)

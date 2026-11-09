@@ -115,7 +115,7 @@ public class Sensor {
             @NonNull List<SensorLocationInternal> workaroundLocation,
             boolean resetLockoutRequiresHardwareAuthToken) {
         this(provider, context, handler, getFingerprintSensorPropertiesInternal(sensorProp,
-                        workaroundLocation, resetLockoutRequiresHardwareAuthToken),
+                        workaroundLocation, resetLockoutRequiresHardwareAuthToken, context),
                 biometricContext, null);
     }
 
@@ -210,7 +210,7 @@ public class Sensor {
 
     protected static FingerprintSensorPropertiesInternal getFingerprintSensorPropertiesInternal(
             SensorProps prop, List<SensorLocationInternal> workaroundLocations,
-            boolean resetLockoutRequiresHardwareAuthToken) {
+            boolean resetLockoutRequiresHardwareAuthToken, @Nullable Context context) {
         final List<ComponentInfoInternal> componentInfo = new ArrayList<>();
         if (prop.commonProps.componentInfo != null) {
             for (ComponentInfo info : prop.commonProps.componentInfo) {
@@ -219,9 +219,14 @@ public class Sensor {
                         info.softwareVersion));
             }
         }
+        final int configMax = context != null
+                ? context.getResources().getInteger(
+                        com.android.internal.R.integer.config_fingerprintMaxTemplatesPerUser)
+                : 25;
+        final int maxEnrollments = Math.max(prop.commonProps.maxEnrollmentsPerUser, configMax);
         return new FingerprintSensorPropertiesInternal(prop.commonProps.sensorId,
                 prop.commonProps.sensorStrength,
-                prop.commonProps.maxEnrollmentsPerUser,
+                maxEnrollments,
                 componentInfo,
                 prop.sensorType,
                 prop.halControlsIllumination,
@@ -236,6 +241,13 @@ public class Sensor {
                                                 location.sensorRadius,
                                                 location.sensorLocationData))
                                 .collect(Collectors.toList()));
+    }
+
+    protected static FingerprintSensorPropertiesInternal getFingerprintSensorPropertiesInternal(
+            SensorProps prop, List<SensorLocationInternal> workaroundLocations,
+            boolean resetLockoutRequiresHardwareAuthToken) {
+        return getFingerprintSensorPropertiesInternal(prop, workaroundLocations,
+                resetLockoutRequiresHardwareAuthToken, null);
     }
 
     @NonNull public Supplier<AidlSession> getLazySession() {

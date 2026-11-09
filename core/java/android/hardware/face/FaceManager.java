@@ -615,6 +615,23 @@ public class FaceManager implements BiometricAuthenticator {
     }
 
     /**
+     * Renames the given faceId
+     * @hide
+     */
+    @RequiresPermission(MANAGE_BIOMETRIC)
+    public void rename(int faceId, int userId, String newName) {
+        if (mService != null) {
+            try {
+                mService.rename(faceId, userId, newName);
+            } catch (RemoteException e) {
+                throw e.rethrowFromSystemServer();
+            }
+        } else {
+            Slog.w(TAG, "rename(): Service not connected!");
+        }
+    }
+
+    /**
      * Obtain the enrolled face template.
      *
      * @return the current face item

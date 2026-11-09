@@ -52,6 +52,7 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.AppGlobals;
 import android.app.AxSandboxManager;
+import com.android.internal.util.android.HideDeveloperStatusUtils;
 import android.app.backup.BackupManager;
 import android.app.compat.CompatChanges;
 import android.app.job.JobInfo;
@@ -643,9 +644,50 @@ public class SettingsProvider extends ContentProvider {
         return null;
     }
 
+    private boolean shouldHideDeveloperStatus(String callingPackage, String name, int userId) {
+        if (!HideDeveloperStatusUtils.isHideableSetting(name)
+                || HideDeveloperStatusUtils.isProtectedPackage(callingPackage)) {
+            return false;
+        }
+        try {
+            synchronized (mLock) {
+                final int owningUserId = resolveOwningUserIdForSecureSetting(userId,
+                        Settings.Secure.HIDE_DEVELOPER_STATUS_ENABLED);
+                Setting enabledSetting = mSettingsRegistry.getSettingLocked(
+                        SETTINGS_TYPE_SECURE, owningUserId, Context.DEVICE_ID_DEFAULT,
+                        Settings.Secure.HIDE_DEVELOPER_STATUS_ENABLED);
+                if (enabledSetting == null || enabledSetting.isNull()
+                        || !"1".equals(enabledSetting.getValue())) {
+                    return false;
+                }
+                Setting targetsSetting = mSettingsRegistry.getSettingLocked(
+                        SETTINGS_TYPE_SECURE, owningUserId, Context.DEVICE_ID_DEFAULT,
+                        Settings.Secure.HIDE_DEVELOPER_STATUS);
+                if (targetsSetting == null || targetsSetting.isNull()) {
+                    return false;
+                }
+                String raw = targetsSetting.getValue();
+                if (TextUtils.isEmpty(raw)) {
+                    return false;
+                }
+                for (String pkg : raw.split(",")) {
+                    if (callingPackage.equals(pkg.trim())) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
     private String getSpoofedValue(String name) {
         String callingPackage = getCallingPackage();
         if (callingPackage == null) return null;
+
+        if (shouldHideDeveloperStatus(callingPackage, name, UserHandle.getCallingUserId())) {
+            return "0";
+        }
 
         if (callingPackage.startsWith("com.android.")
                 || callingPackage.startsWith("com.google.android.")) {
@@ -1619,7 +1661,9 @@ public class SettingsProvider extends ContentProvider {
                 if (setting == null || setting.isNull()) {
                     continue;
                 }
-                String value = getEffectiveValue(setting, sReadableGlobalSettingsWithRedactedValue);
+                String spoofed = getSpoofedValue(name);
+                String value = (spoofed != null) ? spoofed
+                        : getEffectiveValue(setting, sReadableGlobalSettingsWithRedactedValue);
                 appendSettingToCursor(result, String.valueOf(setting.getId()), setting.getName(),
                         value, String.valueOf(setting.isValuePreservedInRestore()));
             }
@@ -1822,7 +1866,9 @@ public class SettingsProvider extends ContentProvider {
                     continue;
                 }
 
-                String value = getEffectiveValue(setting, sReadableSecureSettingsWithRedactedValue);
+                String spoofed = getSpoofedValue(name);
+                String value = (spoofed != null) ? spoofed
+                        : getEffectiveValue(setting, sReadableSecureSettingsWithRedactedValue);
                 appendSettingToCursor(result, String.valueOf(setting.getId()), setting.getName(),
                         value, String.valueOf(setting.isValuePreservedInRestore()));
             }

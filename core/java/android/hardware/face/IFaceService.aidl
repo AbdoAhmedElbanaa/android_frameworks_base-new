@@ -116,6 +116,10 @@ interface IFaceService {
     @EnforcePermission("USE_BIOMETRIC_INTERNAL")
     void removeAll(IBinder token, int userId, IFaceServiceReceiver receiver, String opPackageName);
 
+    // Renames the specified face enrollment for the specified userId.
+    @EnforcePermission("MANAGE_BIOMETRIC")
+    void rename(int faceId, int userId, String name);
+
     // Get the enrolled face for user.
     @EnforcePermission("USE_BIOMETRIC_INTERNAL")
     List<Face> getEnrolledFaces(int sensorId, int userId, String opPackageName);

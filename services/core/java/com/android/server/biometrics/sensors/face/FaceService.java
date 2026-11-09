@@ -662,12 +662,33 @@ public class FaceService extends SystemService {
                     new ClientMonitorCallbackConverter(receiver), opPackageName);
         }
 
+        @android.annotation.EnforcePermission(android.Manifest.permission.MANAGE_BIOMETRIC)
+        @Override
+        public void rename(final int faceId, final int userId, final String name) {
+            super.rename_enforcePermission();
+
+            if (!Utils.isCurrentUserOrProfile(getContext(), userId)) {
+                return;
+            }
+
+            final Pair<Integer, ServiceProvider> provider = mRegistry.getSingleProvider();
+            if (provider == null) {
+                Slog.w(TAG, "Null provider for rename");
+                return;
+            }
+
+            FaceUtils.getLegacyInstance(provider.first).renameBiometricForUser(getContext(), userId, faceId, name);
+            FaceUtils.getInstance(provider.first).renameBiometricForUser(getContext(), userId, faceId, name);
+        }
+
         private List<ServiceProvider> getSenseProviders() {
             final List<ServiceProvider> providers = new ArrayList<>();
+            final int maxTemplates = getContext().getResources().getInteger(
+                    com.android.internal.R.integer.config_faceMaxTemplatesPerUser);
             FaceSensorPropertiesInternal props = new FaceSensorPropertiesInternal(
                     SenseProvider.DEVICE_ID,
                     SensorProperties.STRENGTH_WEAK,
-                    1, /** maxEnrollmentsPerUser **/
+                    maxTemplates, /** maxEnrollmentsPerUser **/
                     new ArrayList(),
                     FaceSensorProperties.TYPE_RGB,
                     false, /** supportsFaceDetection **/

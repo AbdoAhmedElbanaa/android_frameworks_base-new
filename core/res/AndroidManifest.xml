@@ -5020,7 +5020,7 @@
 
          <p>Not for use by third-party applications. -->
     <permission android:name="android.permission.SYSTEM_APPLICATION_OVERLAY"
-        android:protectionLevel="signature|recents|role|installer|appop"
+        android:protectionLevel="signature|privileged|recents|role|installer|appop"
         android:featureFlag="com.android.media.projection.flags.recording_overlay"
         android:permissionFlags="allowedInPrivateComputeCore" />
 
@@ -5035,7 +5035,7 @@
 
          <p>Not for use by third-party applications. -->
     <permission android:name="android.permission.SYSTEM_APPLICATION_OVERLAY"
-        android:protectionLevel="signature|recents|role|installer"
+        android:protectionLevel="signature|privileged|recents|role|installer"
         android:featureFlag="!com.android.media.projection.flags.recording_overlay"
         android:permissionFlags="allowedInPrivateComputeCore" />
 

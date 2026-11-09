@@ -1017,6 +1017,19 @@ final class DefaultPermissionGrantPolicy {
         grantPermissionsToPackage(pm, "com.google.android.googlequicksearchbox", userId,
                 false /* ignoreSystemPackage */, true /*whitelistRestrictedPermissions*/,
                 PHONE_PERMISSIONS);
+
+        // AiAi (Device Personalization Services) — Live Translate, Now Playing, Smart Actions.
+        // Requires RECORD_AUDIO for real-time captions and READ_CONTACTS for smart suggestions.
+        // CAMERA is used by visual search features. Location is used for contextual awareness.
+        grantPermissionsToSystemPackage(pm, "com.google.android.as", userId,
+                MICROPHONE_PERMISSIONS, CONTACTS_PERMISSIONS,
+                CAMERA_PERMISSIONS, COARSE_BACKGROUND_LOCATION_PERMISSIONS,
+                NOTIFICATION_PERMISSIONS);
+
+        // Private Compute Services (Astrea) — the INTERNET bridge for AiAi.
+        // Downloads language models and ML assets from gstatic.com on behalf of AiAi.
+        grantPermissionsToSystemPackage(pm, "com.google.android.as.oss", userId,
+                NOTIFICATION_PERMISSIONS);
     }
 
     private String getDefaultSystemHandlerActivityPackageForCategory(PackageManagerWrapper pm,
