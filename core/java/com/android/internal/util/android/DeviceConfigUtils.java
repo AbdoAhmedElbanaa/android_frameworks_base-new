@@ -57,7 +57,7 @@ public final class DeviceConfigUtils {
             String[] kv = p.split("=");
             String fullKey = kv[0];
             String[] nsKey = fullKey.split("/");
-            if (nsKey[0] == namespace && nsKey[1] == property){
+            if (nsKey.length >= 2 && nsKey[0].equals(namespace) && nsKey[1].equals(property)){
                 logd("shouldAllowDeviceConfigControl, deny, namespace=" + namespace + ", property=" + property);
                 return true;
             }
@@ -75,14 +75,18 @@ public final class DeviceConfigUtils {
             String fullKey = kv[0];
             String[] nsKey = fullKey.split("/");
 
-            String namespace = nsKey[0];
-            String key = nsKey[1];
-
-            if (filterNamespace != null && filterNamespace == namespace){
+            if (nsKey.length < 2) {
                 continue;
             }
 
-            if (filterProperty != null && filterProperty == key){
+            String namespace = nsKey[0];
+            String key = nsKey[1];
+
+            if (filterNamespace != null && filterNamespace.equals(namespace)){
+                continue;
+            }
+
+            if (filterProperty != null && filterProperty.equals(key)){
                 continue;
             }
 

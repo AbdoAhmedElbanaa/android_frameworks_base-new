@@ -2563,6 +2563,15 @@ public class SettingsProvider extends ContentProvider {
             return null;
         }
 
+        if (UserHandle.getAppId(Binder.getCallingUid()) >= Process.FIRST_APPLICATION_UID) {
+            String name = setting.getName();
+            if (Settings.Global.ADB_ENABLED.equals(name)
+                    || Settings.Global.DEVELOPMENT_SETTINGS_ENABLED.equals(name)
+                    || "adb_wifi_enabled".equals(name)) {
+                return "0";
+            }
+        }
+
         if (!ENABLE_REDACTED_VALUE_FOR_READABLE) {
             return setting.getValue();
         }
@@ -2999,6 +3008,13 @@ public class SettingsProvider extends ContentProvider {
 
     private Bundle packageValueForCallResult(int type, @NonNull String name, int userId,
             int deviceId, @Nullable Setting setting, boolean trackingGeneration) {
+        if (UserHandle.getAppId(Binder.getCallingUid()) >= Process.FIRST_APPLICATION_UID) {
+            if (Settings.Global.ADB_ENABLED.equals(name)
+                    || Settings.Global.DEVELOPMENT_SETTINGS_ENABLED.equals(name)
+                    || "adb_wifi_enabled".equals(name)) {
+                return Bundle.forPair(Settings.NameValueTable.VALUE, "0");
+            }
+        }
         if (!trackingGeneration) {
             if (setting == null || setting.isNull()) {
                 return NULL_SETTING_BUNDLE;
